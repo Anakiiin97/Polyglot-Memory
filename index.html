@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polyglot Master SRS</title>
+    <style>
+        :root {
+            --bg: #f0f2f5; --card: #ffffff; --text: #1c1e21;
+            --primary: #007bff; --success: #28a745; --danger: #dc3545;
+            --border: #ccc;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #18191a; --card: #242526; --text: #e4e6eb;
+                --border: #444;
+            }
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg); color: var(--text);
+            margin: 0; display: flex; flex-direction: column; align-items: center;
+            padding-bottom: 50px;
+        }
+
+        /* Barre de Progression Améliorée */
+        .progress-wrapper { 
+            width: 100%; height: 12px; background: #ddd; 
+            position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        #progressBar { height: 100%; background: var(--success); width: 0%; transition: 0.5s; }
+
+        header { width: 100%; background: #000; color: white; padding: 15px 0; text-align: center; }
+
+        .lang-selector { margin: 15px 0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+        .lang-btn { 
+            padding: 10px 15px; border: none; border-radius: 20px; cursor: pointer; 
+            background: var(--card); color: var(--text); box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            font-weight: bold; transition: 0.2s;
+        }
+        .lang-btn.active { background: var(--primary) !important; color: white !important; transform: scale(1.05); }
+
+        /* Flashcard */
+        .card-container { perspective: 1000px; width: 90%; max-width: 400px; height: 280px; margin: 20px 0; }
+        .card { 
+            position: relative; width: 100%; height: 100%; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); 
+            transform-style: preserve-3d; cursor: pointer;
+        }
+        .card.flipped { transform: rotateY(180deg); }
+        .card-face {
+            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 25px; background: var(--card); padding: 30px; box-sizing: border-box;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; border: 1px solid var(--border);
+        }
+        .card-back { transform: rotateY(180deg); }
+        .word-text { font-size: 2rem; font-weight: 800; margin-bottom: 15px; }
+        
+        .speaker-btn { 
+            background: #eee; border: none; border-radius: 50%; width: 45px; height: 45px; 
+            cursor: pointer; font-size: 1.2rem; margin-bottom: 10px;
+        }
+
+        /* Contrôles SRS */
+        .controls { display: flex; gap: 20px; opacity: 0; pointer-events: none; margin-bottom: 20px; }
+        .controls.visible { opacity: 1; pointer-events: auto; }
+        .btn { padding: 12px 25px; border: none; border-radius: 30px; color: white; font-weight: bold; cursor: pointer; }
+        .btn-again { background: var(--danger); }
+        .btn-know { background: var(--success); }
+
+        /* Sections Form & Lexique */
+        .section-box { width: 90%; max-width: 500px; background: var(--card); padding: 25px; border-radius: 20px; margin-top: 25px; border: 1px solid var(--border); }
+        h3 { margin-top: 0; border-bottom: 2px solid var(--primary); padding-bottom: 10px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); box-sizing: border-box; }
+        
+        .list-item { 
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 0; border-bottom: 1px solid var(--border);
+        }
+        .action-btns button { background: none; border: none; cursor: pointer; font-size: 1.2rem; margin-left: 10px; }
+        .data-ops { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="progress-wrapper"><div id="progressBar"></div></div>
+
+<header><h1>Polyglot Master</h1></header>
+
+<div class="lang-selector" id="langSelector">
+    <button class="lang-btn" onclick="setLanguage('Anglais', 0)">🇬🇧 EN</button>
+    <button class="lang-btn" onclick="setLanguage('Espagnol', 1)">🇪🇸 ES</button>
+    <button class="lang-btn" onclick="setLanguage('Italien', 2)">🇮🇹 IT</button>
+    <button class="lang-btn" onclick="setLanguage('Suédois', 3)">🇸🇪 SV</button>
+    <button class="lang-btn" onclick="setLanguage('Catalan', 4)">🚩 CA</button>
+</div>
+
+<div class="card-container" onclick="flipCard()">
+    <div class="card" id="mainCard">
+        <div class="card-face card-front">
+            <button class="speaker-btn" onclick="event.stopPropagation(); speakCurrent(true)">🔊</button>
+            <div id="frontText" class="word-text">...</div>
+            <small style="opacity:0.5">Cliquez pour voir la réponse</small>
+        </div>
+        <div class="card-face card-back">
+            <div id="backText" class="word-text">...</div>
+            <button class="speaker-btn" onclick="event.stopPropagation(); speakCurrent(false)">🔊</button>
+        </div>
+    </div>
+</div>
+
+<div class="controls" id="controls">
+    <button class="btn btn-again" onclick="handleResponse(false)">À revoir</button>
+    <button class="btn btn-know" onclick="handleResponse(true)">Je savais !</button>
+</div>
+
+<div class="section-box">
+    <h3>➕ Ajouter du vocabulaire</h3>
+    <input type="text" id="newWord" placeholder="Mot ou phrase originale">
+    <input type="text" id="newTrans" placeholder="Traduction">
+    <button class="btn" style="background: var(--primary); width:100%" onclick="addNewWord()">Enregistrer</button>
+</div>
+
+<div class="section-box">
+    <h3>📚 Bibliothèque</h3>
+    <div id="lexiqueList"></div>
+    <div class="data-ops">
+        <button class="btn" style="background:#666" onclick="exportData()">📤 Export</button>
+        <button class="btn" style="background:#666" onclick="document.getElementById('importFile').click()">📥 Import</button>
+        <input type="file" id="importFile" style="display:none" onchange="importData(event)">
+    </div>
+</div>
+
+<script>
+    let flashcards = JSON.parse(localStorage.getItem('poly_master_v3')) || [];
+    const langs = ['Anglais', 'Espagnol', 'Italien', 'Suédois', 'Catalan'];
+    let currentLang = 'Anglais';
+    let currentCard = null;
+
+    function setLanguage(lang, index) {
+        currentLang = lang;
+        
+        // Correction visuelle des boutons
+        const btns = document.querySelectorAll('.lang-btn');
+        btns.forEach((btn, i) => {
+            btn.classList.toggle('active', i === index);
+        });
+
+        updateUI();
+        nextCard();
+    }
+
+    function updateUI() {
+        const list = document.getElementById('lexiqueList');
+        // Filtrage ET Tri Alphabétique
+        const filtered = flashcards.filter(c => c.lang === currentLang)
+                                   .sort((a, b) => a.front.localeCompare(b.front));
+
+        list.innerHTML = filtered.length ? '' : '<p style="text-align:center; opacity:0.5">Lexique vide.</p>';
+        
+        filtered.forEach(c => {
+            const item = document.createElement('div');
+            item.className = 'list-item';
+            item.innerHTML = `
+                <span><strong>${c.front}</strong><br><small>${c.back}</small></span>
+                <div class="action-btns">
+                    <button onclick="editCard(${c.id})">✏️</button>
+                    <button onclick="deleteCard(${c.id})">🗑️</button>
+                </div>
+            `;
+            list.appendChild(item);
+        });
+
+        // Mise à jour de la barre de progression
+        const mastered = filtered.filter(c => c.level > 3).length;
+        const percent = filtered.length ? (mastered / filtered.length) * 100 : 0;
+        document.getElementById('progressBar').style.width = percent + '%';
+    }
+
+    function addNewWord() {
+        const f = document.getElementById('newWord'), b = document.getElementById('newTrans');
+        if(!f.value || !b.value) return;
+        flashcards.push({ id: Date.now(), lang: currentLang, front: f.value, back: b.value, level: 1 });
+        f.value = ''; b.value = '';
+        save();
+        if(!currentCard) nextCard();
+    }
+
+    function nextCard() {
+        const filtered = flashcards.filter(c => c.lang === currentLang);
+        const cardEl = document.getElementById('mainCard');
+        const ctrl = document.getElementById('controls');
+        cardEl.classList.remove('flipped');
+        ctrl.classList.remove('visible');
+
+        if(filtered.length === 0) {
+            document.getElementById('frontText').innerText = "Ajoutez des mots !";
+            document.getElementById('backText').innerText = "";
+            currentCard = null;
+        } else {
+            // Logique SRS simple : piocher parmi les mots de niveau le plus bas
+            const minLevel = Math.min(...filtered.map(c => c.level));
+            const pool = filtered.filter(c => c.level <= minLevel + 1);
+            currentCard = pool[Math.floor(Math.random() * pool.length)];
+            document.getElementById('frontText').innerText = currentCard.front;
+            document.getElementById('backText').innerText = currentCard.back;
+        }
+    }
+
+    function flipCard() { 
+        if(currentCard) { 
+            document.getElementById('mainCard').classList.toggle('flipped'); 
+            document.getElementById('controls').classList.add('visible'); 
+        } 
+    }
+
+    function handleResponse(correct) {
+        if(correct) currentCard.level++; else currentCard.level = 1;
+        save();
+        nextCard();
+    }
+
+    function deleteCard(id) {
+        if(confirm("Supprimer ce mot ?")) {
+            flashcards = flashcards.filter(c => c.id !== id);
+            save();
+            nextCard();
+        }
+    }
+
+    function editCard(id) {
+        const card = flashcards.find(c => c.id === id);
+        const f = prompt("Modifier le mot :", card.front);
+        const b = prompt("Modifier la traduction :", card.back);
+        if(f && b) { card.front = f; card.back = b; save(); nextCard(); }
+    }
+
+    function save() {
+        localStorage.setItem('poly_master_v3', JSON.stringify(flashcards));
+        updateUI();
+    }
+
+    function speakCurrent(isFront) {
+        if(!currentCard) return;
+        const msg = new SpeechSynthesisUtterance(isFront ? currentCard.front : currentCard.back);
+        const codes = {'Anglais':'en-US','Espagnol':'es-ES','Italien':'it-IT','Suédois':'sv-SE','Catalan':'ca-ES'};
+        msg.lang = isFront ? codes[currentLang] : 'fr-FR';
+        window.speechSynthesis.speak(msg);
+    }
+
+    function exportData() {
+        const blob = new Blob([JSON.stringify(flashcards)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = "lexique.json";
+        a.click();
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                flashcards = JSON.parse(e.target.result);
+                save();
+                alert("Importation réussie !");
+                nextCard();
+            } catch(err) { alert("Fichier invalide"); }
+        };
+        reader.readAsText(file);
+    }
+
+    // Lancement par défaut sur l'anglais (index 0)
+    setLanguage('Anglais', 0);
+</script>
+</body>
+</html>
